@@ -1,11 +1,19 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { CountrySummary } from '@/lib/queries';
 
 const BASEMAP_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+
+// Next.js/Turbopack doesn't rewrite maplibre-gl's internal `new Worker(new
+// URL(...))` call, so the browser requests a worker script that 404s (see
+// scripts/bundle-maplibre-worker.mjs for the full explanation). Point at the
+// self-hosted bundle instead, before any Map is constructed. Note: tiles
+// won't start rendering for a few seconds after that — the browser has to
+// parse/compile the ~700KB worker bundle before it can respond.
+maplibregl.setWorkerUrl('/maplibre/maplibre-gl-worker.mjs');
 
 function radiusForCount(count: number): number {
   return Math.min(8 + Math.sqrt(count) * 4, 32);
@@ -29,6 +37,7 @@ export default function Map({ countries, onSelectCountry }: MapProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const onSelectCountryRef = useRef(onSelectCountry);
+  const [tilesLoaded, setTilesLoaded] = useState(false);
 
   useEffect(() => {
     onSelectCountryRef.current = onSelectCountry;
@@ -44,6 +53,11 @@ export default function Map({ countries, onSelectCountry }: MapProps) {
       zoom: 1.5,
     });
     mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+    // The basemap's tile worker takes a few real seconds to spin up on first
+    // load (see scripts/bundle-maplibre-worker.mjs) — 'idle' fires once the
+    // initial tiles are actually painted, so we can show a loading state
+    // instead of a plain background that looks broken in the meantime.
+    mapRef.current.once('idle', () => setTilesLoaded(true));
 
     return () => {
       mapRef.current?.remove();
@@ -78,5 +92,14 @@ export default function Map({ countries, onSelectCountry }: MapProps) {
     }
   }, [countries]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      {!tilesLoaded && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[#f8f4ec]">
+          <p className="text-sm text-black/50">Loading map…</p>
+        </div>
+      )}
+    </div>
+  );
 }

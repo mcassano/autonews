@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/bundle-maplibre-worker.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/bundle-maplibre-worker.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -36,6 +38,7 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.11",
     "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "eslint-config-prettier": "^10.1.8",
